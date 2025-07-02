@@ -1,7 +1,6 @@
-# vnmese-rag-chatbot
+# Build RAG Chatbot Application using Streamlit
 This is a project for creating a RAG chatbot in Vietnamese languague.
-There are two sub-projects included
 
-## Project 1.1: Streamlit basic
+## Embedding model:bkai-foundation-models/vietnamese-bi-encoder
 
-## Project 1.2: Build RAG Chatbot Application using Streamlit
+### LLM model: vicuna-7b-v1.5
