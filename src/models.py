@@ -5,8 +5,7 @@ from langchain_huggingface.llms import HuggingFacePipeline
 # import streamlit as st
 
 # @st.cache_resource  
-def load_llm():
-    MODEL_NAME = "lmsys/vicuna-7b-v1.5"
+def load_llm(model_name):
 
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
@@ -16,12 +15,12 @@ def load_llm():
     )
 
     model = AutoModelForCausalLM.from_pretrained(
-        MODEL_NAME,
+        model_name,
         quantization_config=bnb_config,
         device_map="auto"
     )
 
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     model_pipeline = pipeline(
         "text-generation",
