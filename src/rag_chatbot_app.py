@@ -3,6 +3,7 @@ import tempfile
 import os
 import time
 import torch
+import uuid
 
 from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 from langchain_huggingface.llms import HuggingFacePipeline
@@ -10,15 +11,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 from transformers import BitsAndBytesConfig
 from utils import process_pdf
 from models import load_llm as _load_llm
-
-# from langchain_community.document_loaders import PyPDFLoader
-# from langchain_experimental.text_splitter import SemanticChunker
-# from langchain_chroma import Chroma
-
-# from langchain import hub
-# from langchain_core.output_parsers import StrOutputParser
-# from langchain_core.runnables import RunnablePassthrough
-
+from feedback_system import get_feedback_system, display_message_with_feedback, display_feedback_sidebar
 
 # Session state initialization
 if 'rag_chain' not in st.session_state:
@@ -43,28 +36,38 @@ def load_embeddings():
 
 load_llm = st.cache_resource(_load_llm)
 
-def add_message(role, content):
+def add_message(role, content, question=""):
     """Thêm tin nhắn vào lịch sử chat"""
+    message_id = str(uuid.uuid4())
     st.session_state.chat_history.append({
         "role": role,
         "content": content,
+        "question": question,  # Lưu câu hỏi để feedback
+        "message_id": message_id,
         "timestamp": time.time()
     })
+    return message_id
 
 def clear_chat():
     """Xóa lịch sử chat"""
     st.session_state.chat_history = []
 
 def display_chat():
-    """Hiển thị lịch sử chat"""
+    """Hiển thị lịch sử chat với feedback"""
     if st.session_state.chat_history:
         for message in st.session_state.chat_history:
             if message["role"] == "user":
                 with st.chat_message("user"):
                     st.write(message["content"])
             else:
-                with st.chat_message("assistant"):
-                    st.write(message["content"])
+                # Hiển thị assistant message với feedback
+                display_message_with_feedback(
+                    role="assistant",
+                    content=message["content"],
+                    question=message.get("question", ""),
+                    pdf_name=st.session_state.pdf_name,
+                    message_id=message["message_id"]
+                )
     else:
         with st.chat_message("assistant"):
             st.write("Xin chào! Tôi là AI assistant. Hãy upload file PDF và bắt đầu đặt câu hỏi về nội dung tài liệu nhé! 😊")
@@ -77,7 +80,13 @@ def main():
         initial_sidebar_state="expanded"
     )
     st.title("PDF RAG Assistant")
-    st.logo("./logo.png", size="large")
+    
+    # Thay đổi đường dẫn logo
+    try:
+        st.logo("/content/vnmese-rag-chatbot/logo.png", size="large")
+    except:
+        # Nếu không tìm thấy logo, bỏ qua
+        pass
     
     # Sidebar
     with st.sidebar:
@@ -135,8 +144,12 @@ def main():
         1. **Upload PDF** - Chọn file và nhấn "Xử lý PDF"
         2. **Đặt câu hỏi** - Nhập câu hỏi trong ô chat
         3. **Nhận trả lời** - AI sẽ trả lời dựa trên nội dung PDF
+        4. **Feedback** - Bấm 👍/👎 để đánh giá câu trả lời
         """)
-
+    
+    # Hiển thị feedback sidebar
+    display_feedback_sidebar()
+    
     # Main content
     st.markdown("*Trò chuyện với Chatbot để trao đổi về nội dung tài liệu PDF của bạn*")
     
@@ -175,13 +188,19 @@ def main():
                             # Display response
                             st.write(answer)
                             
-                            # Add assistant message to history
-                            add_message("assistant", answer)
+                            # Add assistant message to history với câu hỏi
+                            message_id = add_message("assistant", answer, user_input)
+                            
+                            # Hiển thị feedback ngay lập tức
+                            feedback_system = get_feedback_system()
+                            feedback_system.display_feedback_form(
+                                user_input, answer, message_id, st.session_state.pdf_name
+                            )
                             
                         except Exception as e:
                             error_msg = f"Xin lỗi, đã có lỗi xảy ra: {str(e)}"
                             st.error(error_msg)
-                            add_message("assistant", error_msg)
+                            add_message("assistant", error_msg, user_input)
         else:
             st.info("🔄 Vui lòng upload và xử lý file PDF trước khi bắt đầu chat!")
             st.chat_input("Nhập câu hỏi của bạn...", disabled=True)
