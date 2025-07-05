@@ -3,21 +3,15 @@ import tempfile
 import os
 import time
 import torch
+import asyncio
 
 from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 from langchain_huggingface.llms import HuggingFacePipeline
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 from transformers import BitsAndBytesConfig
-from utils import process_pdf
+from utils import process_multiple_pdfs
 from models import load_llm as _load_llm
 
-# from langchain_community.document_loaders import PyPDFLoader
-# from langchain_experimental.text_splitter import SemanticChunker
-# from langchain_chroma import Chroma
-
-# from langchain import hub
-# from langchain_core.output_parsers import StrOutputParser
-# from langchain_core.runnables import RunnablePassthrough
 
 MODEL_LIST = ["lmsys/vicuna-7b-v1.5", "vinai/PhoGPT-4B-Chat"]
 
@@ -36,8 +30,10 @@ if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
 if 'pdf_processed' not in st.session_state:
     st.session_state.pdf_processed = False
-if 'pdf_name' not in st.session_state:
-    st.session_state.pdf_name = ""
+if 'pdf_names' not in st.session_state:  # Changed to store multiple PDF names
+    st.session_state.pdf_names = []
+if 'total_chunks' not in st.session_state:  # Store total chunks from all PDFs
+    st.session_state.total_chunks = 0
 
 # Functions
 @st.cache_resource
@@ -164,22 +160,26 @@ def main():
         
         # Upload PDF
         st.subheader("📄 Upload tài liệu")
-        uploaded_file = st.file_uploader("Chọn file PDF", type="pdf")
+        uploaded_files = st.file_uploader("Chọn file PDF", accept_multiple_files=True, type="pdf")
         
-        if uploaded_file:
+        if uploaded_files:
             if st.button("🔄 Xử lý PDF", use_container_width=True):
                 with st.spinner("Đang xử lý PDF..."):
-                    st.session_state.rag_chain, num_chunks = process_pdf(uploaded_file)
+                    progress_bar = st.progress(0)
+                    def update_progress(value):
+                        progress_bar.progress(value)
+                    st.session_state.rag_chain, chunk_counts = process_multiple_pdfs(uploaded_files, update_progress)
                     st.session_state.pdf_processed = True
-                    st.session_state.pdf_name = uploaded_file.name
+                    st.session_state.pdf_names = [file.name for file in uploaded_files]
+                    st.session_state.total_chunks = sum(chunk_counts)
                     # Reset chat history khi upload PDF mới
                     clear_chat()
-                    add_message("assistant", f"✅ Đã xử lý thành công file **{uploaded_file.name}**!\n\n📊 Tài liệu được chia thành {num_chunks} phần. Bạn có thể bắt đầu đặt câu hỏi về nội dung tài liệu.")
+                    add_message("assistant", f"✅ Đã xử lý thành công {len(uploaded_files)} file!\n\n📊 Tổng cộng {st.session_state.total_chunks} phần từ các tài liệu. Bạn có thể bắt đầu đặt câu hỏi.")
                 st.rerun()
         
         # PDF status
         if st.session_state.pdf_processed:
-            st.success(f"📄 Đã tải: {st.session_state.pdf_name}")
+            st.success(f"📄 Đã tải: {', '.join(st.session_state.pdf_names)}")
         else:
             st.info("📄 Chưa có tài liệu")
             
