@@ -12,7 +12,12 @@ from transformers import BitsAndBytesConfig
 from utils import process_multiple_pdfs
 from models import load_llm as _load_llm
 
+
+MODEL_LIST = ["lmsys/vicuna-7b-v1.5", "vinai/PhoGPT-4B-Chat"]
+
 # Session state initialization
+if 'model_name' not in st.session_state:  # Error syntax: if not st.session_state.model_name
+        st.session_state.model_name = MODEL_LIST[0] # Set the first model as default
 if 'rag_chain' not in st.session_state:
     st.session_state.rag_chain = None
 if 'models_loaded' not in st.session_state:
@@ -73,16 +78,78 @@ def main():
     st.title("PDF RAG Assistant")
     st.logo("./logo.png", size="large")
     
+
+    # Main content
+    st.markdown("*Trò chuyện với Chatbot để trao đổi về nội dung tài liệu PDF của bạn*")
+    
+    # Chat container
+    chat_container = st.container()
+    
+    with chat_container:
+        # Display chat history
+        display_chat()
+    
+    # Model selection
+    model_name = st.selectbox("Chọn model AI", MODEL_LIST, index=MODEL_LIST.index(st.session_state.model_name))
+    
+    # Chat input
+    if st.session_state.models_loaded:
+        st.info("Model AI được sử dụng: " + st.session_state.model_name)
+        if st.session_state.pdf_processed:
+            # User input
+            user_input = st.chat_input("Nhập câu hỏi của bạn...")
+            
+            if user_input:
+                # Add user message
+                add_message("user", user_input)
+                
+                # Display user message immediately
+                with st.chat_message("user"):
+                    st.write(user_input)
+                
+                # Generate response
+                with st.chat_message("assistant"):
+                    with st.spinner("Đang suy nghĩ..."):
+                        try:
+                            output = st.session_state.rag_chain.invoke(user_input)
+                            # Clean up the response
+                            if 'Answer:' in output:
+                                answer = output.split('Answer:')[1].strip()
+                            else:
+                                answer = output.strip()
+                            
+                            # Display response
+                            st.write(answer)
+                            
+                            # Add assistant message to history
+                            add_message("assistant", answer)
+                            
+                        except Exception as e:
+                            error_msg = f"Xin lỗi, đã có lỗi xảy ra: {str(e)}"
+                            st.error(error_msg)
+                            add_message("assistant", error_msg)
+        else:
+            st.info("🔄 Vui lòng upload và xử lý file PDF trước khi bắt đầu chat!")
+            st.chat_input("Nhập câu hỏi của bạn...", disabled=True)
+    else:
+        st.info("⏳ Đang tải AI models, vui lòng đợi...")
+        st.chat_input("Nhập câu hỏi của bạn...", disabled=True)
+        
     # Sidebar
     with st.sidebar:
         st.title("⚙️ Cài đặt")
         
         # Load models
+        if model_name != st.session_state.model_name:
+            st.session_state.model_name = model_name
+            st.session_state.models_loaded = False  # Force reload if needed
+            st.rerun()
+            
         if not st.session_state.models_loaded:
             st.warning("⏳ Đang tải models...")
             with st.spinner("Đang tải AI models..."):
                 st.session_state.embeddings = load_embeddings()
-                st.session_state.llm = load_llm()
+                st.session_state.llm = load_llm(st.session_state.model_name) 
                 st.session_state.models_loaded = True
             st.success("✅ Models đã sẵn sàng!")
             st.rerun()
@@ -130,62 +197,11 @@ def main():
         st.subheader("📋 Hướng dẫn")
         st.markdown("""
         **Cách sử dụng:**
-        1. **Upload PDF** - Chọn nhiều file và nhấn "Xử lý PDF"
-        2. **Đặt câu hỏi** - Nhập câu hỏi trong ô chat
-        3. **Nhận trả lời** - AI sẽ trả lời dựa trên nội dung các PDF
+        1. **Chọn model** - Chọn model AI để sử dụng
+        2. **Upload PDF** - Chọn file và nhấn "Xử lý PDF"
+        3. **Đặt câu hỏi** - Nhập câu hỏi trong ô chat
+        4. **Nhận trả lời** - AI sẽ trả lời dựa trên nội dung PDF
         """)
-
-    # Main content
-    st.markdown("*Trò chuyện với Chatbot để trao đổi về nội dung tài liệu PDF của bạn*")
-    
-    # Chat container
-    chat_container = st.container()
-    
-    with chat_container:
-        # Display chat history
-        display_chat()
-    
-    # Chat input
-    if st.session_state.models_loaded:
-        if st.session_state.pdf_processed:
-            # User input
-            user_input = st.chat_input("Nhập câu hỏi của bạn...")
-            
-            if user_input:
-                # Add user message
-                add_message("user", user_input)
-                
-                # Display user message immediately
-                with st.chat_message("user"):
-                    st.write(user_input)
-                
-                # Generate response
-                with st.chat_message("assistant"):
-                    with st.spinner("Đang suy nghĩ..."):
-                        try:
-                            output = st.session_state.rag_chain.invoke(user_input)
-                            # Clean up the response
-                            if 'Answer:' in output:
-                                answer = output.split('Answer:')[1].strip()
-                            else:
-                                answer = output.strip()
-                            
-                            # Display response
-                            st.write(answer)
-                            
-                            # Add assistant message to history
-                            add_message("assistant", answer)
-                            
-                        except Exception as e:
-                            error_msg = f"Xin lỗi, đã có lỗi xảy ra: {str(e)}"
-                            st.error(error_msg)
-                            add_message("assistant", error_msg)
-        else:
-            st.info("🔄 Vui lòng upload và xử lý file PDF trước khi bắt đầu chat!")
-            st.chat_input("Nhập câu hỏi của bạn...", disabled=True)
-    else:
-        st.info("⏳ Đang tải AI models, vui lòng đợi...")
-        st.chat_input("Nhập câu hỏi của bạn...", disabled=True)
 
 if __name__ == "__main__":
     main()
