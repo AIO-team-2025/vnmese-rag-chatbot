@@ -34,6 +34,88 @@ if 'pdf_names' not in st.session_state:  # Changed to store multiple PDF names
     st.session_state.pdf_names = []
 if 'total_chunks' not in st.session_state:  # Store total chunks from all PDFs
     st.session_state.total_chunks = 0
+if 'lang' not in st.session_state:
+    st.session_state.lang = "vi"
+
+#Add language feature
+LANG_OPTIONS = {
+    "vi": "Tiếng Việt",
+    "en": "English"
+}
+
+translations = {
+    "title": {
+        "vi": "📄 Trợ lý PDF RAG",
+        "en": "📄 PDF RAG Assistant"
+    },
+    "description": {
+        "vi": "*Trò chuyện với Chatbot để trao đổi về nội dung tài liệu PDF của bạn*",
+        "en": "*Chat with the chatbot to explore your PDF content*"
+    },
+    "model_select": {
+        "vi": "Chọn model AI",
+        "en": "Select AI model"
+    },
+    "upload_label": {
+        "vi": "Chọn file PDF",
+        "en": "Upload PDF file"
+    },
+    "process_button": {
+        "vi": "🔄 Xử lý PDF",
+        "en": "🔄 Process PDF"
+    },
+    "pdf_ready": {
+        "vi": "📄 Đã tải",
+        "en": "📄 Uploaded"
+    },
+    "pdf_empty": {
+        "vi": "📄 Chưa có tài liệu",
+        "en": "📄 No PDF uploaded"
+    },
+    "chat_input_placeholder": {
+        "vi": "Nhập câu hỏi của bạn...",
+        "en": "Enter your question..."
+    },
+    "chat_disabled": {
+        "vi": "🔄 Vui lòng upload và xử lý file PDF trước khi bắt đầu chat!",
+        "en": "🔄 Please upload and process a PDF before chatting!"
+    },
+    "thinking": {
+        "vi": "Đang suy nghĩ...",
+        "en": "Thinking..."
+    },
+    "model_loading": {
+        "vi": "⏳ Đang tải AI models, vui lòng đợi...",
+        "en": "⏳ Loading AI models, please wait..."
+    },
+    "model_ready": {
+        "vi": "✅ Models đã sẵn sàng!",
+        "en": "✅ Models are ready!"
+    },
+    "clear_chat": {
+        "vi": "🗑️ Xóa lịch sử chat",
+        "en": "🗑️ Clear chat history"
+    },
+    "instructions": {
+        "vi": "**Cách sử dụng:**\n1. **Chọn model**\n2. **Upload PDF**\n3. **Đặt câu hỏi**\n4. **Nhận trả lời**",
+        "en": "**How to use:**\n1. **Select model**\n2. **Upload PDF**\n3. **Ask questions**\n4. **Receive answers**"
+    },
+    "used_model":
+    {
+        "vi": "Model AI được sử dụng: ",
+        "en": "Model AI being used: "
+    },
+    "setting":
+    {
+        "vi": "⚙️ Cài đặt",
+        "en": "⚙️ Settings"
+    },
+    "upload_pdf":
+    {
+        "vi": "Upload Tài liệu",
+        "en": "Upload PDF"
+    }
+}
 
 # Functions
 @st.cache_resource
@@ -70,17 +152,24 @@ def display_chat():
 
 # UI
 def main():
+    # Sidebar: Language selection
+    with st.sidebar:
+        st.title("🌐 Language / Ngôn ngữ")
+        lang_choice = st.selectbox("Chọn / Select", options=list(LANG_OPTIONS.keys()), format_func=lambda x: LANG_OPTIONS[x])
+        st.session_state.lang = lang_choice
+        t = lambda key: translations[key][st.session_state.lang]
+
     st.set_page_config(
         page_title="PDF RAG Chatbot", 
         layout="wide",
         initial_sidebar_state="expanded"
     )
-    st.title("PDF RAG Assistant")
+    st.title(t("title"))
     st.logo("./logo.png", size="large")
     
 
     # Main content
-    st.markdown("*Trò chuyện với Chatbot để trao đổi về nội dung tài liệu PDF của bạn*")
+    st.markdown(t("description"))
     
     # Chat container
     chat_container = st.container()
@@ -90,14 +179,14 @@ def main():
         display_chat()
     
     # Model selection
-    model_name = st.selectbox("Chọn model AI", MODEL_LIST, index=MODEL_LIST.index(st.session_state.model_name))
+    model_name = st.selectbox(t("model_select"), MODEL_LIST, index=MODEL_LIST.index(st.session_state.model_name))
     
     # Chat input
     if st.session_state.models_loaded:
-        st.info("Model AI được sử dụng: " + st.session_state.model_name)
+        st.info(t("used_model") + st.session_state.model_name)
         if st.session_state.pdf_processed:
             # User input
-            user_input = st.chat_input("Nhập câu hỏi của bạn...")
+            user_input = st.chat_input(t("chat_input_placeholder"))
             
             if user_input:
                 # Add user message
@@ -109,7 +198,7 @@ def main():
                 
                 # Generate response
                 with st.chat_message("assistant"):
-                    with st.spinner("Đang suy nghĩ..."):
+                    with st.spinner(t("thinking")):
                         try:
                             output = st.session_state.rag_chain.invoke(user_input)
                             # Clean up the response
@@ -125,19 +214,19 @@ def main():
                             add_message("assistant", answer)
                             
                         except Exception as e:
-                            error_msg = f"Xin lỗi, đã có lỗi xảy ra: {str(e)}"
+                            error_msg = f"❌ {str(e)}"
                             st.error(error_msg)
                             add_message("assistant", error_msg)
         else:
-            st.info("🔄 Vui lòng upload và xử lý file PDF trước khi bắt đầu chat!")
+            st.info(t("chat_disabled"))
             st.chat_input("Nhập câu hỏi của bạn...", disabled=True)
     else:
-        st.info("⏳ Đang tải AI models, vui lòng đợi...")
-        st.chat_input("Nhập câu hỏi của bạn...", disabled=True)
+        st.info(t("model_loading"))
+        st.chat_input(t("chat_input_placeholder"), disabled=True)
         
     # Sidebar
     with st.sidebar:
-        st.title("⚙️ Cài đặt")
+        st.title(t("settings"))
         
         # Load models
         if model_name != st.session_state.model_name:
@@ -146,25 +235,25 @@ def main():
             st.rerun()
             
         if not st.session_state.models_loaded:
-            st.warning("⏳ Đang tải models...")
-            with st.spinner("Đang tải AI models..."):
+            st.warning(t("model_loading"))
+            with st.spinner(t("model_loading")):
                 st.session_state.embeddings = load_embeddings()
                 st.session_state.llm = load_llm(st.session_state.model_name) 
                 st.session_state.models_loaded = True
-            st.success("✅ Models đã sẵn sàng!")
+            st.success(t("model_ready"))
             st.rerun()
         else:
-            st.success("✅ Models đã sẵn sàng!")
+            st.success(t("model_ready"))
 
         st.markdown("---")
         
         # Upload PDF
         st.subheader("📄 Upload tài liệu")
-        uploaded_files = st.file_uploader("Chọn file PDF", accept_multiple_files=True, type="pdf")
+        uploaded_files = st.file_uploader(t("upload_label"), accept_multiple_files=True, type="pdf")
         
         if uploaded_files:
-            if st.button("🔄 Xử lý PDF", use_container_width=True):
-                with st.spinner("Đang xử lý PDF..."):
+            if st.button(t("process_button"), use_container_width=True):
+                with st.spinner(t("process_button")):
                     progress_bar = st.progress(0)
                     def update_progress(value):
                         progress_bar.progress(value)
@@ -174,34 +263,29 @@ def main():
                     st.session_state.total_chunks = sum(chunk_counts)
                     # Reset chat history khi upload PDF mới
                     clear_chat()
-                    add_message("assistant", f"✅ Đã xử lý thành công {len(uploaded_files)} file!\n\n📊 Tổng cộng {st.session_state.total_chunks} phần từ các tài liệu. Bạn có thể bắt đầu đặt câu hỏi.")
+                    add_message("assistant", f"{t('pdf_ready')}: {', '.join(st.session_state.pdf_names)}\nChunks: {st.session_state.total_chunks}")
                 st.rerun()
         
         # PDF status
         if st.session_state.pdf_processed:
-            st.success(f"📄 Đã tải: {', '.join(st.session_state.pdf_names)}")
+            st.success(f"{t('pdf_ready')}: {', '.join(st.session_state.pdf_names)}")
         else:
-            st.info("📄 Chưa có tài liệu")
+            st.info(t("pdf_empty"))
             
         st.markdown("---")
         
         # Chat controls
-        st.subheader("💬 Điều khiển Chat")
-        if st.button("🗑️ Xóa lịch sử chat", use_container_width=True):
+        st.subheader("💬 Chat")
+        if st.button(t("clear_chat"), use_container_width=True):
             clear_chat()
             st.rerun()
             
         st.markdown("---")
         
         # Instructions
-        st.subheader("📋 Hướng dẫn")
-        st.markdown("""
-        **Cách sử dụng:**
-        1. **Chọn model** - Chọn model AI để sử dụng
-        2. **Upload PDF** - Chọn file và nhấn "Xử lý PDF"
-        3. **Đặt câu hỏi** - Nhập câu hỏi trong ô chat
-        4. **Nhận trả lời** - AI sẽ trả lời dựa trên nội dung PDF
-        """)
+        st.markdown("---")
+        st.subheader("📋 Guide")
+        st.markdown(t("instructions"))
 
 if __name__ == "__main__":
     main()
